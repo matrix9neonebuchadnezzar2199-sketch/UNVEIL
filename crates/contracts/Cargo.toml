@@ -1,0 +1,11 @@
+[package]
+name = "unveil-contracts"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "UNVEIL IPC and schema types. Worker output is untrusted until re-validated."
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }

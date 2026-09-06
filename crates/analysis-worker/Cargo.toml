@@ -1,0 +1,17 @@
+[package]
+name = "unveil-analysis-worker"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Isolated static-analysis worker. Must never execute input bytes."
+
+[[bin]]
+name = "unveil-worker"
+path = "src/main.rs"
+
+[dependencies]
+unveil-contracts = { path = "../contracts" }
+unveil-engine = { path = "../engine" }
+serde = { workspace = true }
+serde_json = { workspace = true }

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>モック — UNVEIL Analyze</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e27;
+    --surface: rgba(30, 41, 59, 0.6);
+    --surface-solid: #1e293b;
+    --surface2: rgba(10, 14, 39, 0.6);
+    --border: rgba(100, 116, 139, 0.3);
+    --border-light: rgba(100, 116, 139, 0.18);
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+    --link: #00d4ff;
+    --purple: #8b5cf6;
+    --btn: #0ea5c6;
+    --btn-text: #06121f;
+    --btn-save: #10b981;
+    --btn-stop: #ff0055;
+    --btn-warn: #e3892b;
+    --code-bg: rgba(10, 14, 39, 0.7);
+    --grid-line: rgba(0, 212, 255, 0.05);
+    --glow: 0 0 20px rgba(0, 212, 255, 0.3);
+    --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.4);
+    color-scheme: dark;
+  }
+  :root.light {
+    --bg: #eef2f7;
+    --surface: rgba(255, 255, 255, 0.72);
+    --surface-solid: #ffffff;
+    --surface2: rgba(226, 232, 240, 0.7);
+    --border: rgba(100, 116, 139, 0.35);
+    --text: #0f172a;
+    --text-muted: #5a6472;
+    --link: #0284c7;
+    --purple: #7c3aed;
+    --btn: #38bdf8;
+    --btn-text: #082f3f;
+    --btn-save: #10b981;
+    --btn-stop: #e11d48;
+    --btn-warn: #d97706;
+    --code-bg: #eef1f4;
+    --grid-line: rgba(2, 132, 199, 0.06);
+    --glow: 0 0 16px rgba(2, 132, 199, 0.25);
+    --shadow-card: 0 8px 24px rgba(15, 23, 42, 0.12);
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html { font-size: 14px; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Inter", "Yu Gothic UI", Meiryo, "Segoe UI", sans-serif;
+         line-height: 1.55; min-height: 100vh; }
+  body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image: linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 50px 50px; }
+  code, .mono { font-family: "JetBrains Mono", Consolas, monospace; }
+  header { background: rgba(10, 14, 39, 0.9); backdrop-filter: blur(12px);
+           border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+           padding: 10px 20px; display: flex; align-items: center; gap: 12px;
+           position: sticky; top: 0; z-index: 100; }
+  :root.light header { background: rgba(255, 255, 255, 0.85); }
+  header h1 { font-size: 1.25rem; margin: 0; font-weight: 800;
+    background: linear-gradient(135deg, var(--link), var(--purple));
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; }
+  header .spacer { flex: 1; }
+  .hdr-btn { background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+             border-radius: 8px; min-width: 34px; height: 30px; cursor: pointer; }
+  .hdr-btn:hover { border-color: var(--link); box-shadow: var(--glow); }
+  .pill { font-size: 0.8rem; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-muted); }
+  .pill.warn { color: var(--btn-warn); border-color: var(--btn-warn); }
+  #layout { display: flex; align-items: flex-start; position: relative; z-index: 1; }
+  #sidebar { background: var(--surface); backdrop-filter: blur(12px); border-right: 1px solid var(--border);
+             width: 232px; min-width: 160px; max-width: 420px; height: calc(100vh - 51px);
+             position: sticky; top: 51px; overflow-y: auto; flex-shrink: 0; padding: 14px 12px; }
+  #sidebar h3 { font-size: 0.75rem; color: var(--text-muted); margin: 14px 4px 6px; text-transform: uppercase; letter-spacing: 0.12em; }
+  #sidebar h3:first-child { margin-top: 0; }
+  .side-link { display: block; padding: 8px 12px; border-radius: 8px; color: var(--text); text-decoration: none; font-weight: 500; }
+  .side-link:hover { background: rgba(0, 212, 255, 0.08); color: var(--link); }
+  .side-link.active { color: var(--link); background: rgba(0, 212, 255, 0.12); box-shadow: var(--glow); }
+  .side-meta { margin-top: 24px; padding: 10px 12px; border: 1px solid var(--border);
+               border-radius: 8px; font-size: 0.8rem; color: var(--text-muted); }
+  #sidebar-resizer { width: 6px; cursor: col-resize; flex-shrink: 0; height: calc(100vh - 51px); position: sticky; top: 51px; }
+  #sidebar-resizer:hover, #sidebar-resizer.dragging { background: var(--link); }
+  #collapse-btn { position: sticky; top: 64px; margin-left: -9px; width: 24px; height: 36px;
+                  border-radius: 8px; background: var(--btn); color: var(--btn-text); border: 1px solid var(--border);
+                  cursor: pointer; z-index: 150; }
+  #sidebar-balloon { display: none; position: fixed; left: 0; top: 80px; z-index: 200;
+                     background: var(--surface-solid); border: 1px solid var(--border); border-left: none;
+                     border-radius: 0 18px 18px 0; padding: 10px 14px; cursor: pointer; color: var(--text); }
+  body.sidebar-collapsed #sidebar, body.sidebar-collapsed #sidebar-resizer { display: none; }
+  body.sidebar-collapsed #sidebar-balloon { display: block; }
+  main { flex: 1; padding: 16px 20px 48px; min-width: 0; }
+  .drop { border: 1px dashed var(--link); border-radius: 16px; padding: 18px 20px;
+          background: rgba(0, 212, 255, 0.04); margin-bottom: 16px;
+          display: flex; justify-content: space-between; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .drop strong { display: block; font-size: 1.05rem; }
+  .workspace { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; }
+  @media (max-width: 1100px) { .workspace { grid-template-columns: 1fr; } .drop { flex-direction: column; align-items: stretch; } }
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+  @media (max-width: 900px) { .kpi-grid { grid-template-columns: 1fr 1fr; } }
+  .kpi { background: var(--surface); backdrop-filter: blur(12px); border: 1px solid var(--border);
+         border-radius: 16px; padding: 12px 14px; }
+  .kpi .val { font-size: 1.05rem; font-weight: 700; color: var(--link); font-family: "JetBrains Mono", Consolas, monospace; }
+  .kpi .lbl { color: var(--text-muted); font-size: 0.78rem; margin-top: 4px; }
+  .card { background: var(--surface); backdrop-filter: blur(12px); border: 1px solid var(--border);
+          border-radius: 16px; padding: 16px 18px; margin-bottom: 16px; box-shadow: var(--shadow-card); }
+  .card h2 { margin: 0 0 10px; font-size: 1rem; display: flex; gap: 8px; align-items: center; }
+  .card h2::before { content: ""; width: 4px; height: 1em; border-radius: 2px; background: linear-gradient(180deg, var(--link), var(--purple)); }
+  .sub { color: var(--text-muted); font-size: 0.82rem; margin-top: -6px; margin-bottom: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+  th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border-light); vertical-align: top; }
+  th { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; }
+  .hl { background: rgba(0, 212, 255, 0.18); }
+  .codeview { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+              padding: 12px; overflow: auto; max-height: 220px; font-size: 0.82rem; white-space: pre; }
+  button { border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 600; border: 1px solid transparent; }
+  .btn { background: var(--btn); color: var(--btn-text); }
+  .btn-save { background: var(--btn-save); color: #fff; }
+  .btn-stop { background: var(--btn-stop); color: #fff; }
+  .btn-warn { background: var(--btn-warn); color: #fff; }
+  .copy-btn { background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+              border-radius: 6px; padding: 2px 8px; font-size: 0.8rem; cursor: pointer; }
+  .status { margin-top: 8px; font-size: 0.8rem; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 8px; }
+  .muted { color: var(--text-muted); }
+  .ok { color: var(--btn-save); } .warn { color: var(--btn-warn); }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .banner { background: var(--surface2); border: 1px dashed var(--border); border-radius: 8px;
+            padding: 8px 12px; margin-bottom: 14px; color: var(--text-muted); font-size: 0.85rem; }
+  .setting-row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0;
+                 border-bottom: 1px solid var(--border-light); }
+  .setting-row:last-child { border-bottom: 0; }
+  .toggle { accent-color: var(--link); margin-top: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>UNVEIL</h1>
+  <span class="pill">Analyze</span>
+  <span class="pill">STATIC</span>
+  <span class="pill warn">隔離未実証</span>
+  <span class="spacer"></span>
+  <button type="button" class="btn-save">保存</button>
+  <span style="display:flex;gap:4px;align-items:center;">
+    <button class="hdr-btn" id="font-minus" title="フォントサイズを小さく">−</button>
+    <button class="hdr-btn" id="font-plus" title="フォントサイズを大きく">＋</button>
+    <button class="hdr-btn" id="theme-toggle" title="ライト／ダーク切替">🌙</button>
+  </span>
+</header>
+
+<div id="sidebar-balloon">💬 メニュー</div>
+<div id="layout">
+  <nav id="sidebar">
+    <h3>画面</h3>
+    <a class="side-link" href="mockup.html">Dashboard</a>
+    <a class="side-link active" href="mockup_analyze.html">Analyze</a>
+    <div class="side-meta">v0.1.0 · タブ化は未決</div>
+  </nav>
+  <div id="sidebar-resizer"><button id="collapse-btn" title="サイドバーを折りたたむ">▼</button></div>
+  <main>
+    <div class="banner">ファイル選択と解析結果を同一画面に集約。タブ分割は確認後に決める。入力は実行しない。</div>
+
+    <section class="drop">
+      <div>
+        <strong>ファイルを選択、またはここにドロップ</strong>
+        <p class="muted" style="margin:6px 0 0;">静的解析のみ。外部送信なし。最大 50 MiB。選択しただけでは変換しない。</p>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn">ファイルを選択</button>
+        <button type="button" class="btn-save">教材から始める</button>
+        <button type="button" class="btn-warn">解析を開始（隔離不足のため無効）</button>
+        <button type="button" class="btn-stop">停止</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>取込確認</h2>
+      <p class="sub">保存と隔離の説明。画面からの無制限化はできない。</p>
+      <table>
+        <tr><th>項目</th><th>値</th><th></th></tr>
+        <tr>
+          <td>選択中</td>
+          <td><code>specimen.js</code> · 4.2 KiB · UTF-8</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>保存モード</td>
+          <td>一時セッション（終了時に削除）</td>
+          <td><button type="button" class="copy-btn" data-copy="ephemeral">📋</button></td>
+        </tr>
+        <tr>
+          <td>ワークスペース</td>
+          <td><code class="mono">%LOCALAPPDATA%\UNVEIL\workspace</code></td>
+          <td><button type="button" class="copy-btn" data-copy="%LOCALAPPDATA%\UNVEIL\workspace">📋</button></td>
+        </tr>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>このジョブの検知器（ON/OFF）</h2>
+      <p class="sub">OFF は検知も変換もしない。製品名の特定はしない。</p>
+      <div class="setting-row">
+        <input class="toggle" type="checkbox" checked disabled>
+        <div>
+          <strong>enc.base64</strong>
+          <div class="muted">字種・padding・strict decode の往復。短い一致は難読化陽性にしない。</div>
+        </div>
+      </div>
+      <div class="setting-row">
+        <input class="toggle" type="checkbox" checked disabled>
+        <div>
+          <strong>compression.gzip</strong>
+          <div class="muted">マジックと上限付き単一ストリーム展開。爆弾は LIMIT_REACHED。</div>
+        </div>
+      </div>
+      <div class="setting-row">
+        <input class="toggle" type="checkbox" checked disabled>
+        <div>
+          <strong>layout.minify / JS AST</strong>
+          <div class="muted">整形と純粋リテラル連結のみ。eval は実行せず記事案内。</div>
+        </div>
+      </div>
+      <div class="setting-row">
+        <input class="toggle" type="checkbox" disabled>
+        <div>
+          <strong>PE / ELF / packer</strong>
+          <div class="muted">MVP 対象外。基本マジックのみ。内部解析は PHASE 07。</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="kpi-grid">
+      <div class="kpi"><div class="val">inconclusive</div><div class="lbl">難読化兆候（安全判定ではない）</div></div>
+      <div class="kpi"><div class="val">enc.base64</div><div class="lbl">関連する表現変換 · probable</div></div>
+      <div class="kpi"><div class="val">partial</div><div class="lbl">解析範囲 · テキスト 4.2 KiB</div></div>
+      <div class="kpi"><div class="val">supported</div><div class="lbl">解除支援 · 選択範囲のデコード</div></div>
+    </div>
+
+    <div class="workspace">
+      <div>
+        <section class="card" id="overview">
+          <h2>原本 · Text</h2>
+          <div class="codeview"><span class="mono">const token = "<span class="hl">c3BlY2ltZW4ubGFi</span>";
+console.log(token);</span></div>
+          <p class="muted">ハイライトは選択中 Finding の byte 範囲。HTML としては描画しない。</p>
+        </section>
+        <section class="card" id="evidence">
+          <h2>Finding</h2>
+          <table>
+            <tr><th>方式</th><th>区分</th><th>範囲</th><th>一致度</th><th>解除</th></tr>
+            <tr>
+              <td><code>enc.base64</code></td>
+              <td>encoding</td>
+              <td class="mono">[16, 32)</td>
+              <td>80 · rule_match</td>
+              <td class="ok">supported</td>
+            </tr>
+          </table>
+          <p class="muted">スコアはルール一致度。「80% 悪性」とは表示しない。</p>
+        </section>
+        <section class="card" id="transform">
+          <h2>変換プレビュー</h2>
+          <p>操作: 選択範囲を strict Base64 デコード。失われる情報: なし（可逆教材）。</p>
+          <div class="codeview">specimen.lab</div>
+          <div class="actions" style="margin-top:10px;">
+            <button type="button" class="btn">プレビュー</button>
+            <button type="button" class="btn-save">適用して派生物を保存</button>
+            <button type="button" class="btn-warn">自動チェーンは既定 OFF</button>
+          </div>
+        </section>
+      </div>
+      <aside>
+        <section class="card">
+          <h2>選択中の根拠</h2>
+          <p><strong>観測</strong> alphabet + padding + round-trip</p>
+          <p><strong>反証</strong> 識別子としても成立し得る</p>
+          <p><strong>ルール版</strong> <code>1.0.0</code>
+            <button type="button" class="copy-btn" data-copy="enc.base64@1.0.0">📋</button></p>
+        </section>
+        <section class="card" id="compare">
+          <h2>検証 / 比較</h2>
+          <p class="ok">passed · 再エンコード一致</p>
+          <p class="warn">意味的等価性は未検証</p>
+        </section>
+      </aside>
+    </div>
+    <div class="status">検知完了 · 9/9 検査 · 未解析: なし（対応範囲内）· 未検出は不在証明ではない</div>
+  </main>
+</div>
+<script>
+const themeBtn = document.getElementById("theme-toggle");
+function applyTheme(theme) {
+  document.documentElement.classList.toggle("light", theme === "light");
+  themeBtn.textContent = theme === "light" ? "☀" : "🌙";
+}
+themeBtn.onclick = () => applyTheme(document.documentElement.classList.contains("light") ? "dark" : "light");
+let fontSize = 14;
+document.getElementById("font-plus").onclick = () => {
+  fontSize = Math.min(20, fontSize + 1);
+  document.documentElement.style.fontSize = fontSize + "px";
+};
+document.getElementById("font-minus").onclick = () => {
+  fontSize = Math.max(11, fontSize - 1);
+  document.documentElement.style.fontSize = fontSize + "px";
+};
+document.getElementById("collapse-btn").onclick = () => document.body.classList.add("sidebar-collapsed");
+document.getElementById("sidebar-balloon").onclick = () => document.body.classList.remove("sidebar-collapsed");
+const sidebar = document.getElementById("sidebar");
+const resizer = document.getElementById("sidebar-resizer");
+let dragging = false;
+resizer.addEventListener("mousedown", (e) => {
+  if (e.target.id === "collapse-btn") return;
+  dragging = true; resizer.classList.add("dragging"); e.preventDefault();
+});
+document.addEventListener("mousemove", (e) => {
+  if (!dragging) return;
+  sidebar.style.width = Math.min(420, Math.max(160, e.clientX)) + "px";
+});
+document.addEventListener("mouseup", () => { dragging = false; resizer.classList.remove("dragging"); });
+document.querySelectorAll(".copy-btn").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    await navigator.clipboard.writeText(btn.getAttribute("data-copy") || "");
+    btn.textContent = "copied";
+    setTimeout(() => { btn.textContent = "📋"; }, 1200);
+  });
+});
+</script>
+</body>
+</html>

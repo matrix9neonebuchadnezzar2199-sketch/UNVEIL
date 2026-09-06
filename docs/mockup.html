@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>モック — UNVEIL Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e27;
+    --surface: rgba(30, 41, 59, 0.6);
+    --surface-solid: #1e293b;
+    --surface2: rgba(10, 14, 39, 0.6);
+    --border: rgba(100, 116, 139, 0.3);
+    --border-light: rgba(100, 116, 139, 0.18);
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+    --link: #00d4ff;
+    --purple: #8b5cf6;
+    --btn: #0ea5c6;
+    --btn-text: #06121f;
+    --btn-save: #10b981;
+    --btn-stop: #ff0055;
+    --btn-warn: #e3892b;
+    --code-bg: rgba(10, 14, 39, 0.7);
+    --grid-line: rgba(0, 212, 255, 0.05);
+    --glow: 0 0 20px rgba(0, 212, 255, 0.3);
+    --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.4);
+    color-scheme: dark;
+  }
+  :root.light {
+    --bg: #eef2f7;
+    --surface: rgba(255, 255, 255, 0.72);
+    --surface-solid: #ffffff;
+    --surface2: rgba(226, 232, 240, 0.7);
+    --border: rgba(100, 116, 139, 0.35);
+    --border-light: rgba(100, 116, 139, 0.18);
+    --text: #0f172a;
+    --text-muted: #5a6472;
+    --link: #0284c7;
+    --purple: #7c3aed;
+    --btn: #38bdf8;
+    --btn-text: #082f3f;
+    --btn-save: #10b981;
+    --btn-stop: #e11d48;
+    --btn-warn: #d97706;
+    --code-bg: #eef1f4;
+    --grid-line: rgba(2, 132, 199, 0.06);
+    --glow: 0 0 16px rgba(2, 132, 199, 0.25);
+    --shadow-card: 0 8px 24px rgba(15, 23, 42, 0.12);
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html { font-size: 14px; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Inter", "Yu Gothic UI", Meiryo, "Segoe UI", sans-serif;
+         line-height: 1.6; min-height: 100vh; }
+  body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 50px 50px; }
+  code, .mono { font-family: "JetBrains Mono", Consolas, monospace; }
+  header { background: rgba(10, 14, 39, 0.9); backdrop-filter: blur(12px);
+           border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+           padding: 10px 20px; display: flex; align-items: center; gap: 12px;
+           position: sticky; top: 0; z-index: 100; }
+  :root.light header { background: rgba(255, 255, 255, 0.85); }
+  header h1 { font-size: 1.25rem; margin: 0; font-weight: 800;
+    background: linear-gradient(135deg, var(--link), var(--purple));
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; }
+  header .spacer { flex: 1; }
+  .hdr-btn { background: var(--surface2); color: var(--text);
+             border: 1px solid var(--border); border-radius: 8px;
+             min-width: 34px; height: 30px; cursor: pointer; font-size: 1rem;
+             display: inline-flex; align-items: center; justify-content: center; }
+  .hdr-btn:hover { border-color: var(--link); box-shadow: var(--glow); }
+  .hdr-group { display: flex; gap: 4px; align-items: center; }
+  .hdr-group .lbl { color: var(--text-muted); font-size: 0.85rem; margin-right: 2px; }
+  .pill { font-size: 0.8rem; padding: 2px 10px; border-radius: 999px;
+          border: 1px solid var(--border); color: var(--text-muted); }
+  .pill.warn { color: var(--btn-warn); border-color: var(--btn-warn); }
+  #layout { display: flex; align-items: flex-start; position: relative; z-index: 1; }
+  #sidebar { background: var(--surface); backdrop-filter: blur(12px);
+             border-right: 1px solid var(--border);
+             width: 232px; min-width: 160px; max-width: 420px;
+             height: calc(100vh - 51px); position: sticky; top: 51px;
+             overflow-y: auto; flex-shrink: 0; padding: 14px 12px; }
+  #sidebar h3 { font-size: 0.75rem; color: var(--text-muted); margin: 14px 4px 6px;
+                text-transform: uppercase; letter-spacing: 0.12em; }
+  #sidebar h3:first-child { margin-top: 0; }
+  .side-link { display: block; padding: 8px 12px; border-radius: 8px;
+               color: var(--text); text-decoration: none; font-size: 0.95rem; font-weight: 500; }
+  .side-link:hover { background: rgba(0, 212, 255, 0.08); color: var(--link); }
+  .side-link.active { color: var(--link); background: rgba(0, 212, 255, 0.12); box-shadow: var(--glow); }
+  .side-meta { margin-top: 24px; padding: 10px 12px; border: 1px solid var(--border);
+               border-radius: 8px; font-size: 0.8rem; color: var(--text-muted); }
+  #sidebar-resizer { width: 6px; cursor: col-resize; flex-shrink: 0;
+                     height: calc(100vh - 51px); position: sticky; top: 51px; }
+  #sidebar-resizer:hover, #sidebar-resizer.dragging { background: var(--link); }
+  #collapse-btn { position: sticky; top: 64px; margin-left: -9px; width: 24px; height: 36px;
+                  border-radius: 8px; background: var(--btn); color: var(--btn-text);
+                  border: 1px solid var(--border); cursor: pointer; font-size: 0.75rem;
+                  display: flex; align-items: center; justify-content: center; padding: 0; z-index: 150; }
+  #sidebar-balloon { display: none; position: fixed; left: 0; top: 80px; z-index: 200;
+                     background: var(--surface-solid); border: 1px solid var(--border);
+                     border-left: none; border-radius: 0 18px 18px 0;
+                     padding: 10px 14px 10px 10px; cursor: pointer; color: var(--text);
+                     box-shadow: 2px 2px 12px rgba(0,0,0,.35); }
+  body.sidebar-collapsed #sidebar, body.sidebar-collapsed #sidebar-resizer { display: none; }
+  body.sidebar-collapsed #sidebar-balloon { display: block; }
+  main { flex: 1; padding: 20px 26px 60px; min-width: 0; }
+  .card { background: var(--surface); backdrop-filter: blur(12px);
+          border: 1px solid var(--border); border-radius: 16px;
+          padding: 18px 22px; margin-bottom: 20px;
+          box-shadow: var(--shadow-card); transition: transform 0.3s ease, box-shadow 0.3s ease; }
+  .card:hover { transform: translateY(-3px); border-color: rgba(0, 212, 255, 0.4);
+                box-shadow: var(--shadow-card), var(--glow); }
+  .card h2 { margin: 0 0 12px; font-size: 1.05rem; font-weight: 700;
+             border-bottom: 1px solid var(--border-light); padding-bottom: 8px;
+             display: flex; align-items: center; gap: 8px; }
+  .card h2::before { content: ""; width: 4px; height: 1em; border-radius: 2px;
+                     background: linear-gradient(180deg, var(--link), var(--purple)); }
+  .sub { color: var(--text-muted); font-size: 0.82rem; margin-top: -8px; margin-bottom: 12px; }
+  .banner { background: var(--surface2); border: 1px dashed var(--border); border-radius: 8px;
+            padding: 8px 12px; margin-bottom: 14px; color: var(--text-muted); font-size: 0.85rem; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+  @media (max-width: 980px) { .kpi-grid { grid-template-columns: 1fr 1fr; } }
+  .kpi { background: var(--surface); backdrop-filter: blur(12px); border: 1px solid var(--border);
+         border-radius: 16px; padding: 16px; box-shadow: var(--shadow-card); }
+  .kpi .val { font-size: 1.7rem; font-weight: 800; color: var(--link);
+              font-family: "JetBrains Mono", Consolas, monospace; }
+  .kpi .lbl { color: var(--text-muted); font-size: 0.82rem; margin-top: 4px; }
+  .charts { display: grid; grid-template-columns: 280px 1fr; gap: 16px; }
+  @media (max-width: 1100px) { .charts { grid-template-columns: 1fr; } }
+  .pie-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .pie { width: 168px; height: 168px; border-radius: 50%;
+         background: conic-gradient(var(--link) 0 42%, var(--purple) 42% 67%, var(--btn-save) 67% 85%, var(--btn-warn) 85% 100%);
+         box-shadow: var(--glow); }
+  .legend { list-style: none; margin: 0; padding: 0; width: 100%; font-size: 0.88rem; }
+  .legend li { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  .bar-row { display: grid; grid-template-columns: 8.5rem 1fr 2.4rem; gap: 10px; align-items: center; margin: 8px 0; font-size: 0.88rem; }
+  .bar-track { height: 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+  .bar { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--link), var(--purple)); }
+  .ok { color: var(--btn-save); } .warn { color: var(--btn-warn); } .err { color: var(--btn-stop); }
+  .muted { color: var(--text-muted); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+  th, td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--border-light); }
+  th { color: var(--text-muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  .copy-btn { background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+              border-radius: 6px; padding: 2px 8px; font-size: 0.8rem; cursor: pointer; }
+  .copy-btn:hover { border-color: var(--link); }
+</style>
+</head>
+<body>
+<header>
+  <h1>UNVEIL</h1>
+  <span class="pill">概要</span>
+  <span class="pill warn">隔離未実証 · 解析開始不可</span>
+  <span class="spacer"></span>
+  <span class="hdr-group">
+    <span class="lbl">文字</span>
+    <button class="hdr-btn" id="font-minus" title="フォントサイズを小さく">−</button>
+    <button class="hdr-btn" id="font-plus" title="フォントサイズを大きく">＋</button>
+  </span>
+  <span class="hdr-group">
+    <button class="hdr-btn" id="theme-toggle" title="ライト／ダーク切替">🌙</button>
+  </span>
+</header>
+
+<div id="sidebar-balloon" title="メニューを開く">💬 メニュー</div>
+<div id="layout">
+  <nav id="sidebar">
+    <h3>画面</h3>
+    <a class="side-link active" href="mockup.html">Dashboard</a>
+    <a class="side-link" href="mockup_analyze.html">Analyze</a>
+    <div class="side-meta">
+      v0.1.0 · schema 1.0
+      <button type="button" class="copy-btn" data-copy="1.0">📋</button><br>
+      隔離: SANDBOX_UNAVAILABLE
+    </div>
+  </nav>
+  <div id="sidebar-resizer" title="ドラッグで幅調整"><button id="collapse-btn" title="サイドバーを折りたたむ">▼</button></div>
+
+  <main>
+    <div class="banner">Dashboard は保存研究の概要のみ。ファイル選択と解析結果は Analyze。数値はダミー。未検出は安全の証明ではない。</div>
+
+    <div class="kpi-grid">
+      <div class="kpi"><div class="val">3</div><div class="lbl">保存セッション</div></div>
+      <div class="kpi"><div class="val">12</div><div class="lbl">解析ジョブ（累計）</div></div>
+      <div class="kpi"><div class="val">47</div><div class="lbl">Finding（ルール一致）</div></div>
+      <div class="kpi"><div class="val err">0</div><div class="lbl">隔離合格（fail-closed）</div></div>
+    </div>
+
+    <div class="charts">
+      <section class="card">
+        <h2>Finding 区分</h2>
+        <p class="sub">方式カテゴリの内訳。難読化陽性そのものではない。</p>
+        <div class="pie-wrap">
+          <div class="pie" role="img" aria-label="encoding 42%、layout 25%、compression 18%、inconclusive 15%"></div>
+          <ul class="legend">
+            <li><span class="swatch" style="background:var(--link)"></span>encoding 42% · 20</li>
+            <li><span class="swatch" style="background:var(--purple)"></span>layout 25% · 12</li>
+            <li><span class="swatch" style="background:var(--btn-save)"></span>compression 18% · 8</li>
+            <li><span class="swatch" style="background:var(--btn-warn)"></span>inconclusive 15% · 7</li>
+          </ul>
+        </div>
+      </section>
+      <section class="card">
+        <h2>方式別 Finding 数</h2>
+        <p class="sub">ルール一致の件数。製品名の特定ではない。</p>
+        <div class="bar-row"><span class="mono">enc.base64</span><div class="bar-track"><div class="bar" style="width:86%"></div></div><span class="mono">24</span></div>
+        <div class="bar-row"><span class="mono">layout.minify</span><div class="bar-track"><div class="bar" style="width:43%"></div></div><span class="mono">12</span></div>
+        <div class="bar-row"><span class="mono">gzip</span><div class="bar-track"><div class="bar" style="width:29%"></div></div><span class="mono">8</span></div>
+        <div class="bar-row"><span class="mono">js-escape</span><div class="bar-track"><div class="bar" style="width:11%"></div></div><span class="mono">3</span></div>
+      </section>
+    </div>
+
+    <section class="card">
+      <h2>ジョブ結果</h2>
+      <p class="sub">終端状態の内訳。失敗と未対応を成功と混ぜない。</p>
+      <div class="bar-row"><span>completed</span><div class="bar-track"><div class="bar" style="width:58%;background:var(--btn-save)"></div></div><span class="mono">7</span></div>
+      <div class="bar-row"><span>partial</span><div class="bar-track"><div class="bar" style="width:25%;background:var(--btn-warn)"></div></div><span class="mono">3</span></div>
+      <div class="bar-row"><span>failed / cancelled</span><div class="bar-track"><div class="bar" style="width:17%;background:var(--btn-stop)"></div></div><span class="mono">2</span></div>
+    </section>
+
+    <section class="card">
+      <h2>保存済みセッション（件数の内訳）</h2>
+      <p class="sub">本文は Analyze で開く。ここは概要だけ。</p>
+      <table>
+        <tr><th>名前</th><th>Finding</th><th>状態</th></tr>
+        <tr><td>lab-js-literal-concat</td><td class="mono">4</td><td class="ok">保存済み</td></tr>
+        <tr><td>lab-gzip-roundtrip</td><td class="mono">1</td><td class="ok">保存済み</td></tr>
+        <tr><td>lab-minify-dist</td><td class="mono">2</td><td class="warn">partial</td></tr>
+      </table>
+    </section>
+  </main>
+</div>
+
+<script>
+const themeBtn = document.getElementById("theme-toggle");
+function applyTheme(theme) {
+  document.documentElement.classList.toggle("light", theme === "light");
+  themeBtn.textContent = theme === "light" ? "☀" : "🌙";
+}
+themeBtn.onclick = () => applyTheme(document.documentElement.classList.contains("light") ? "dark" : "light");
+let fontSize = 14;
+document.getElementById("font-plus").onclick = () => {
+  fontSize = Math.min(20, fontSize + 1);
+  document.documentElement.style.fontSize = fontSize + "px";
+};
+document.getElementById("font-minus").onclick = () => {
+  fontSize = Math.max(11, fontSize - 1);
+  document.documentElement.style.fontSize = fontSize + "px";
+};
+document.getElementById("collapse-btn").onclick = () => document.body.classList.add("sidebar-collapsed");
+document.getElementById("sidebar-balloon").onclick = () => document.body.classList.remove("sidebar-collapsed");
+const sidebar = document.getElementById("sidebar");
+const resizer = document.getElementById("sidebar-resizer");
+let dragging = false;
+resizer.addEventListener("mousedown", (e) => {
+  if (e.target.id === "collapse-btn") return;
+  dragging = true;
+  resizer.classList.add("dragging");
+  e.preventDefault();
+});
+document.addEventListener("mousemove", (e) => {
+  if (!dragging) return;
+  sidebar.style.width = Math.min(420, Math.max(160, e.clientX)) + "px";
+});
+document.addEventListener("mouseup", () => {
+  dragging = false;
+  resizer.classList.remove("dragging");
+});
+document.querySelectorAll(".copy-btn").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    const value = btn.getAttribute("data-copy") || "";
+    try {
+      await navigator.clipboard.writeText(value);
+      btn.textContent = "copied";
+      setTimeout(() => { btn.textContent = "📋"; }, 1200);
+    } catch {
+      btn.textContent = "fail";
+    }
+  });
+});
+</script>
+</body>
+</html>

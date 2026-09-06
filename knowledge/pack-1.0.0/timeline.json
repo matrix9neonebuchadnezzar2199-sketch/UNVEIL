@@ -1,0 +1,32 @@
+[
+  {
+    "year": "1996",
+    "title": "MIME Content-Transfer-Encoding",
+    "note": "Base64 の使用文脈。発明年ではない。",
+    "citation": "S4"
+  },
+  {
+    "year": "1997",
+    "title": "Obfuscating Transformations taxonomy",
+    "note": "layout/data/control 等の評価軸。",
+    "citation": "S1"
+  },
+  {
+    "year": "2001",
+    "title": "On the (Im)possibility of Obfuscating Programs",
+    "note": "VBB 型汎用難読化の限界。全て無意味という結論ではない。",
+    "citation": "S2"
+  },
+  {
+    "year": "2006",
+    "title": "RFC 4648",
+    "note": "Base16/32/64 の共通仕様。暗号との違い。",
+    "citation": "S3"
+  },
+  {
+    "year": "2010",
+    "title": "S2 改訂稿",
+    "note": "2001 初版と 2010-07-18 版を区別する。",
+    "citation": "S2"
+  }
+]
