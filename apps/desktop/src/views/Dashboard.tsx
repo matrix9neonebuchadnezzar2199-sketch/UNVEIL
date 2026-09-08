@@ -47,9 +47,9 @@ export default function Dashboard({ onOpenAnalyze }: Props) {
   return (
     <>
       <div className="banner">
-        Dashboard は保存研究の概要のみ。ファイル選択は Analyze。件数は実データ（未保存なら 0）。
+        Dashboard は保存研究の概要のみ。ファイル選択は難読化判定。件数は実データ（未保存なら 0）。
         <button type="button" className="btn" style={{ marginLeft: 12 }} onClick={onOpenAnalyze}>
-          Analyze を開く
+          難読化判定を開く
         </button>
       </div>
       <div className="kpi-grid">
@@ -115,6 +115,28 @@ export default function Dashboard({ onOpenAnalyze }: Props) {
           )}
         </section>
       </div>
+      {(overview.module_jobs ?? []).length > 0 ? (
+        <section className="card">
+          <h2>モジュール別ジョブ</h2>
+          <p className="sub">module_id / 件数（累計）。生パスは載せません。</p>
+          <table>
+            <thead>
+              <tr>
+                <th>module</th>
+                <th>jobs</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(overview.module_jobs ?? []).map((row) => (
+                <tr key={row.id}>
+                  <td><code>{row.id}</code></td>
+                  <td className="mono">{row.count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
       <section className="card">
         <h2>保存済みセッション</h2>
         {overview.sessions.length === 0 ? (

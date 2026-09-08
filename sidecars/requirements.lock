@@ -1,0 +1,10 @@
+# UNVEIL sidecar Python dependencies (pinned SBOM)
+# Runtime: sidecars/vendor/ (no pip install at app start)
+# Sibling repos (not pip): MalCheck/mau, USB-GuardDuty/backend
+
+magika==1.0.3
+onnxruntime==1.29.0
+numpy==2.5.3
+protobuf==7.36.1
+flatbuffers==25.12.19
+packaging==26.3

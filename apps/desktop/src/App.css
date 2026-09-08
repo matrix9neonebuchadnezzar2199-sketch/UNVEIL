@@ -76,6 +76,11 @@ header .spacer { flex: 1; }
   color: var(--text); text-decoration: none; font-weight: 500; background: transparent; border: 0; cursor: pointer; }
 .side-link:hover { background: rgba(0, 212, 255, 0.08); color: var(--link); }
 .side-link.active { color: var(--link); background: rgba(0, 212, 255, 0.12); box-shadow: var(--glow); }
+.side-link.disabled, .side-link:disabled { opacity: 0.45; cursor: not-allowed; color: var(--text-muted); }
+.side-link.disabled:hover, .side-link:disabled:hover { background: transparent; color: var(--text-muted); box-shadow: none; }
+.side-badge { margin-left: 8px; font-size: 0.68rem; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-muted); }
+.side-badge.mvp { color: var(--link); border-color: var(--link); }
+.btn-save:disabled { opacity: 0.4; cursor: not-allowed; }
 .side-meta { margin-top: 24px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.8rem; color: var(--text-muted); }
 #sidebar-resizer { width: 6px; cursor: col-resize; flex-shrink: 0; height: calc(100vh - 51px); position: sticky; top: 51px; }
 #sidebar-resizer:hover, #sidebar-resizer.dragging { background: var(--link); }

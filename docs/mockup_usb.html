@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>モック — UNVEIL USBチェック</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="mockup-shared.css">
+<style>
+  .layout-usb {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: 16px;
+  }
+  @media (max-width: 1000px) { .layout-usb { grid-template-columns: 1fr; } }
+  .progress {
+    height: 10px; background: var(--surface2); border-radius: 999px;
+    border: 1px solid var(--border); overflow: hidden; margin: 10px 0;
+  }
+  .progress-fill {
+    height: 100%; width: 67%;
+    background: linear-gradient(90deg, var(--link), var(--purple));
+  }
+  .log {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.78rem;
+    max-height: 120px;
+    overflow: auto;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    color: var(--text-muted);
+  }
+</style>
+</head>
+<body data-md-module="usb" data-job-complete="false">
+<header>
+  <h1>UNVEIL</h1>
+  <span class="pill">USBチェック</span>
+  <span class="pill">READ-ONLY</span>
+  <span class="pill muted">offline</span>
+  <span class="spacer"></span>
+  <button type="button" class="btn-save" id="md-export-btn" disabled title="解析が完了するまで出力できません">結果をマークダウン形式で出力</button>
+  <button type="button" class="btn-stop">スキャン停止</button>
+  <button class="hdr-btn" id="font-minus">−</button>
+  <button class="hdr-btn" id="font-plus">＋</button>
+  <button class="hdr-btn" id="theme-toggle">🌙</button>
+</header>
+
+<div id="sidebar-balloon">💬 メニュー</div>
+<div id="layout">
+  <nav id="sidebar">
+    <h3>モジュール</h3>
+    <a class="side-link" href="mockup.html">Dashboard</a>
+    <a class="side-link" href="mockup_malware.html">マルウェア解析 <span class="side-badge plan">U05</span></a>
+    <a class="side-link" href="mockup_analyze.html">難読化判定 <span class="side-badge mvp">MVP</span></a>
+    <a class="side-link active" href="mockup_usb.html">USBチェック <span class="side-badge plan">U04</span></a>
+    <div class="side-meta">worker pool · 30s/file<br>YARA 更新: OFF</div>
+  </nav>
+  <div id="sidebar-resizer"><button id="collapse-btn">▼</button></div>
+
+  <main>
+    <div class="banner">USB 上のファイルを<strong>読み取り専用</strong>で静的検査。BadUSB 検出・媒体消毒・安全証明ではない。clean は「Finding なし」であり安全の証明ではない。</div>
+
+    <div class="layout-usb">
+      <section class="card">
+        <h2>リムーバブルドライブ</h2>
+        <ul class="drive-list">
+          <li>
+            <div>
+              <strong>E: USB-DRIVE</strong><br>
+              <span class="muted">32 GB · FAT32 · VID_0781</span>
+            </div>
+            <button type="button" class="btn" data-complete-job>スキャン</button>
+          </li>
+          <li>
+            <div>
+              <strong>F: BACKUP</strong><br>
+              <span class="warn">composite HID+storage 疑い</span>
+            </div>
+            <button type="button" class="btn-warn" data-complete-job>確認してスキャン</button>
+          </li>
+        </ul>
+        <p class="muted" style="font-size:0.8rem;margin-top:8px;">固定ディスク C: / D: は既定非表示</p>
+      </section>
+
+      <div>
+        <section class="card">
+          <h2>スキャン進捗 · E:</h2>
+          <p class="sub">multiprocessing pool · 対象へ書込なし</p>
+          <div class="progress"><div class="progress-fill" id="usb-progress-fill"></div></div>
+          <p class="mono" id="usb-progress-label">847 / 1260 files · phase: yara_scan</p>
+          <div class="log">[scan] magic_header OK
+[scan] pe_analyze suspicious packer.exe
+[yara] EICAR-Test-File matched readme.txt
+...</div>
+          <div class="actions" style="margin-top:10px;">
+            <button type="button" class="btn-stop">停止</button>
+          </div>
+        </section>
+
+        <div class="kpi-grid">
+          <div class="kpi"><div class="val sev-susp">suspicious</div><div class="lbl">overall（Finding 集約）</div></div>
+          <div class="kpi"><div class="val">12</div><div class="lbl">findings</div></div>
+          <div class="kpi"><div class="val">3</div><div class="lbl">YARA hits</div></div>
+          <div class="kpi"><div class="val">1</div><div class="lbl">偽装拡張子</div></div>
+        </div>
+
+        <section class="card">
+          <h2>結果ツリー</h2>
+          <div class="tree">
+            <details open>
+              <summary class="sev-mal">📁 autorun.inf · hidden_fs</summary>
+              <p class="muted">autorun エントリ検出 · 実行はしない</p>
+            </details>
+            <details open>
+              <summary class="sev-susp">📄 invoice.pdf.exe · magic_header</summary>
+              <p class="muted">二重拡張子 · Magika: pebin</p>
+              <button type="button" class="btn">マルウェア解析へ</button>
+            </details>
+            <details>
+              <summary class="sev-clean">📄 notes.txt</summary>
+            </details>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>検出コードプレビュー</h2>
+          <div class="codeview">X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*</div>
+          <button type="button" class="copy-btn" data-copy="EICAR">📋</button>
+        </section>
+
+        <section class="card">
+          <h2>アナライザ（ON/OFF + 概要）</h2>
+          <div class="setting-row">
+            <input class="toggle" type="checkbox" checked>
+            <div><strong>yara_scan</strong><div class="muted">全ファイル横断 · ルール compile cache</div></div>
+          </div>
+          <div class="setting-row">
+            <input class="toggle" type="checkbox" checked>
+            <div><strong>pe_analyze</strong><div class="muted">エントロピー · パッカー疑い（製品名は特定しない）</div></div>
+          </div>
+          <div class="setting-row">
+            <input class="toggle" type="checkbox" checked>
+            <div><strong>archive_walk</strong><div class="muted">zip/7z 再帰 · 深度/サイズ cap</div></div>
+          </div>
+        </section>
+
+        <div class="actions">
+          <button type="button" class="btn-save">JSON レポート</button>
+          <button type="button" class="btn">HTML</button>
+          <button type="button" class="btn">PDF</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="status">ST-U01: 対象ボリュームへの書込なし（設計） · --online 未指定</div>
+  </main>
+</div>
+<script src="mockup-shared.js"></script>
+</body>
+</html>

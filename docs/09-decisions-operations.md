@@ -111,3 +111,30 @@ PRテンプレートに記載する内容:
 5. UI資料到着後、情報設計を保持して最終ビジュアルに合わせる。
 
 本設計の完了は実装開始の判断材料が揃うこと。プロダクトの完成、ユーザーによる設計承認、全方式の対応を意味しない。
+
+## 10. 統合ワークベンチ未決事項（OQ-U）
+
+難読化 MVP（00–09）とは別に、MalCheck / USB-GuardDuty / Magika 融合の確認事項。詳細は [10-unified-workbench.md](10-unified-workbench.md) 以降。
+
+| ID | 確認事項 | 暫定案 | 決定担当 | 未決時の影響 |
+|---|---|---|---|---|
+| OQ-U01 | スタンドアロン MalCheck Web / USB-GuardDuty EXE を製品入口に残すか | **残さない。** エンジン源リポは維持。入口は UNVEIL サイドバーのみ | ユーザー＋PM | 入口が二つだと混同表が崩れる |
+| OQ-U02 | Magika モデルの入手 | **リポ同梱。起動時ネットワーク取得禁止** | セキュリティ | C_magika 不合格時は unavailable（libmagic 黙フォールバック禁止） |
+| OQ-U03 | Ghidra イメージの参照 | **手動ビルド済みイメージ。sidecar が `mau.static_analyzer`（`network_mode=none` / pull なし）を呼ぶ。Coordinator は eligible のみ** | 解析＋セキュリティ | イメージ無しなら静的フェーズ skipped（成功を偽装しない） |
+| OQ-U04 | Magika 同梱の物理形態 | **リポ内 hash 固定（wheel + モデル）。実行時 pip/ネット禁止** | セキュリティ＋アプリ | U11 Gate 不可。C_magika は unavailable のまま |
+| OQ-U05 | Ghidra ローカル image tag | **`unveil-ghidra:lab` 等のローカル tag のみ。製品経路で docker pull しない** | 解析＋セキュリティ | U14 は skipped 合格。ok 偽装禁止 |
+| OQ-U06 | USB フォルダスキャンを製品に残すか | **既定はリムーバブルのみ。フォルダは lab フラグまたは明示同意** | ユーザー＋セキュリティ | TEST の tempfile スキャンは lab フラグで維持 |
+
+## 11. 統合 ADR（ADR-U）
+
+| ADR | 決定案 | 代替案 | 理由/トレードオフ |
+|---|---|---|---|
+| ADR-U001 | MalCheck / USB-GuardDuty は Python sidecar。Rust 直移植しない | 全エンジン Rust 再実装 | 既存契約（schema 2.1 / UGD findings）を維持。供給面は Python+Docker |
+| ADR-U002 | Magika は公式バインディング＋同梱モデル。再学習しない | 自前分類器、オンライン API | タイプ推定の再現性。悪意スコアには使わない |
+| ADR-U003 | サイドバーは `modules.manifest` が唯一の正本 | 画面ハードコード | モジュール追加をレジストリ経由に固定。planned は disabled |
+| ADR-U004 | Magika は DIE/capa/YARA/Ghidra と相補。置換しない | Magika score を verdict に混ぜる | タイプ信頼度と悪意判定の混同を防ぐ |
+| ADR-U005 | U00–U07 は骨格完了。深度は U10–U16。骨格合格をモジュール完成と書かない | U03–U06 を未完のままやり直す | TEST プローブと原本チケットの厚みを分離する |
+| ADR-U006 | MalCheck 表層の既定はコンテナ。ホスト fallback は lab ラベルのみ | 常にホスト analyze.py | 隔離弱を製品既定にしない |
+| ADR-U007 | 同一 SHA-256 の handoff では Magika を再実行せずキャッシュ | 毎回再 probe | コスト削減。内容が変わったコピーは別 Artifact |
+| ADR-U008 | Ghidra `phase3_static.status=ok` は実際に headless が成功したときだけ | 空 JSON で ok | 能力未実証の成功表示を禁ずる |
+| ADR-U009 | Ghidra は MalCheck `run_static_analysis` を sidecar から呼ぶ。Coordinator は docker CLI を直叩きしない | Rust 新規 docker supervisor | 既存の `images.get` / `network_mode=none` / StaticError を再利用（ADR-U001） |

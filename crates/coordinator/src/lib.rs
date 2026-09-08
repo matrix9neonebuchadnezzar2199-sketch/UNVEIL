@@ -2,14 +2,19 @@
 //!
 //! Analysis must not start unless [`diagnose_isolation`] reports `available`.
 
+mod content_type;
 mod import;
 mod isolation;
+mod markdown;
+mod modules;
 mod report;
+mod sidecar;
 mod store;
 mod wiki;
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
+use std::process::Child;
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -17,10 +22,11 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use unveil_contracts::{
-    AnalysisResult, AppInfo, Approval, ArtifactView, ByteRange, ComparisonPage, DashboardOverview,
-    DetectorToggle, ErrorCode, ImportedArtifact, IpcError, JobSnapshot,
-    PlanState, ReportDocument, SelectionPreview, TransformApplyResult, TransformPlan,
+    AnalysisResult, AppInfo, Approval, ArtifactView, ByteRange, ComparisonPage, ContentTypeProbe,
+    DashboardOverview, DetectorToggle, ErrorCode, ImportedArtifact, IpcError, JobSnapshot,
+    ModuleJob, PlanState, ReportDocument, SelectionPreview, TransformApplyResult, TransformPlan,
     TransformPreview, WikiArticle, WikiHit, WorkerRequest, MAX_CHAIN_DEPTH, MAX_TRANSFORM_TRIES,
+    ghidra_eligible,
 };
 
 use import::{
@@ -31,6 +37,7 @@ use store::Store;
 use wiki::WikiPack;
 
 pub use isolation::{diagnose_isolation, worker_path};
+pub use modules::{diagnose_module, list_modules_json, load_manifest};
 pub use wiki::default_knowledge_dir;
 
 const LESSON_JS: &[u8] = b"const token = \"c3BlY2ltZW4ubGFi\";\nconsole.log(token);\n";
@@ -59,10 +66,17 @@ struct Inner {
     artifacts: HashMap<String, ArtifactRecord>,
     current_id: Option<String>,
     analysis: Option<AnalysisResult>,
+    last_probe: Option<ContentTypeProbe>,
+    last_module_job: Option<ModuleJob>,
     plans: HashMap<String, PlanRecord>,
     tries: u32,
     depth: u32,
     store: Store,
+    usb_scan_roots: HashMap<String, PathBuf>,
+    usb_drive_tokens: HashMap<String, PathBuf>,
+    probe_by_sha256: HashMap<String, ContentTypeProbe>,
+    usb_scan_child: Option<Child>,
+    active_usb_job_id: Option<String>,
 }
 
 pub struct Coordinator {
@@ -88,10 +102,17 @@ impl Coordinator {
                 artifacts: HashMap::new(),
                 current_id: None,
                 analysis: None,
+                last_probe: None,
+                last_module_job: None,
                 plans: HashMap::new(),
                 tries: 0,
                 depth: 0,
                 store,
+                usb_scan_roots: HashMap::new(),
+                usb_drive_tokens: HashMap::new(),
+                probe_by_sha256: HashMap::new(),
+                usb_scan_child: None,
+                active_usb_job_id: None,
             }),
             knowledge: WikiPack::load(knowledge_dir),
         }
@@ -190,7 +211,364 @@ impl Coordinator {
         );
         inner.analysis = None;
         inner.depth = 0;
+        let id = artifact.artifact_id.clone();
+        drop(inner);
+        let _ = self.probe_artifact(&id);
         Ok(artifact)
+    }
+
+    pub fn list_modules(&self) -> Result<serde_json::Value, IpcError> {
+        list_modules_json().map_err(|e| IpcError::new(ErrorCode::SchemaMismatch, e))
+    }
+
+    pub fn diagnose_named_module(&self, module_id: &str) -> Result<unveil_contracts::ModuleDiagnosis, IpcError> {
+        diagnose_module(module_id).map_err(|e| IpcError::new(ErrorCode::NotFound, e))
+    }
+
+    pub fn last_probe(&self) -> Option<ContentTypeProbe> {
+        self.inner.lock().expect("mutex").last_probe.clone()
+    }
+
+    pub fn last_module_job(&self) -> Option<ModuleJob> {
+        self.inner.lock().expect("mutex").last_module_job.clone()
+    }
+
+    pub fn probe_artifact(&self, artifact_id: &str) -> Result<ContentTypeProbe, IpcError> {
+        let (bytes, name) = {
+            let inner = self.inner.lock().expect("mutex");
+            let rec = inner
+                .artifacts
+                .get(artifact_id)
+                .ok_or_else(|| IpcError::new(ErrorCode::NotFound, "error.not_found"))?;
+            let bytes = std::fs::read(blob_dir(&inner).join(&rec.imported.sha256))
+                .map_err(|_| IpcError::new(ErrorCode::PermissionDenied, "error.permission_denied"))?;
+            (bytes, rec.imported.display_name.clone())
+        };
+        let probe = self.probe_bytes_cached(artifact_id, &name, &bytes);
+        self.inner.lock().expect("mutex").last_probe = Some(probe.clone());
+        Ok(probe)
+    }
+
+    fn probe_bytes_cached(&self, artifact_id: &str, name: &str, bytes: &[u8]) -> ContentTypeProbe {
+        let sha = sha256_bytes(bytes);
+        if let Some(cached) = self
+            .inner
+            .lock()
+            .expect("mutex")
+            .probe_by_sha256
+            .get(&sha)
+            .cloned()
+        {
+            let mut probe = cached;
+            probe.artifact_id = artifact_id.into();
+            probe.probe_id = Uuid::new_v4().to_string();
+            return probe;
+        }
+        let probe = content_type::probe_bytes(artifact_id, name, bytes);
+        self.inner
+            .lock()
+            .expect("mutex")
+            .probe_by_sha256
+            .insert(sha, probe.clone());
+        probe
+    }
+
+    pub fn probe_named_bytes(&self, name: &str, bytes: &[u8]) -> Result<ContentTypeProbe, IpcError> {
+        let artifact = self.import_bytes(bytes, name)?;
+        self.probe_artifact(&artifact.artifact_id)
+    }
+
+    pub fn usb_scan_root(
+        &self,
+        root: &Path,
+        workers: u32,
+        folder_mode: bool,
+    ) -> Result<ModuleJob, IpcError> {
+        require_module("usb")?;
+        let job_id = Uuid::new_v4().to_string();
+        let mut inner = self.inner.lock().expect("mutex");
+        inner.active_usb_job_id = Some(job_id.clone());
+        let payload = sidecar::scan_usb_readonly(
+            root,
+            &sidecar::UsbScanOptions {
+                workers,
+                folder_mode,
+            },
+            &mut inner.usb_scan_child,
+        )?;
+        inner.active_usb_job_id = None;
+        inner.usb_scan_roots.insert(job_id.clone(), root.to_path_buf());
+        let job = ModuleJob {
+            job_id,
+            module_id: "usb".into(),
+            input_artifact_id: None,
+            sha256: payload
+                .get("sha256_root")
+                .and_then(|v| v.as_str())
+                .map(str::to_string),
+            status: "completed".into(),
+            payload,
+        };
+        drop(inner);
+        self.store_module_job(job)
+    }
+
+    pub fn usb_scan_drive(&self, token: &str, workers: u32) -> Result<ModuleJob, IpcError> {
+        let root = {
+            let inner = self.inner.lock().expect("mutex");
+            inner
+                .usb_drive_tokens
+                .get(token)
+                .cloned()
+                .ok_or_else(|| IpcError::new(ErrorCode::NotFound, "error.not_found"))?
+        };
+        self.usb_scan_root(&root, workers, false)
+    }
+
+    pub fn list_usb_drives(&self) -> Result<serde_json::Value, IpcError> {
+        require_module("usb")?;
+        let payload = sidecar::list_usb_drives()?;
+        let mut inner = self.inner.lock().expect("mutex");
+        let mut out: Vec<serde_json::Value> = Vec::new();
+        if let Some(items) = payload.get("drives").and_then(|v| v.as_array()) {
+            for item in items {
+                let letter = item.get("letter").and_then(|v| v.as_str()).unwrap_or("");
+                if letter.is_empty() {
+                    continue;
+                }
+                let root = PathBuf::from(format!("{}\\", letter.trim_end_matches('\\')));
+                let token = Uuid::new_v4().to_string();
+                inner.usb_drive_tokens.insert(token.clone(), root);
+                let mut drive = item.clone();
+                if let Some(obj) = drive.as_object_mut() {
+                    obj.insert("token".into(), serde_json::Value::String(token));
+                }
+                out.push(drive);
+            }
+        }
+        Ok(serde_json::json!({ "ok": true, "drives": out }))
+    }
+
+    pub fn cancel_usb_scan(&self) -> Result<(), IpcError> {
+        let mut inner = self.inner.lock().expect("mutex");
+        if let Some(mut child) = inner.usb_scan_child.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        if let Some(job_id) = inner.active_usb_job_id.take() {
+            if let Some(job) = inner.last_module_job.as_mut() {
+                if job.job_id == job_id {
+                    job.status = "cancelled".into();
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn malcheck_sample(&self, sample: &Path) -> Result<ModuleJob, IpcError> {
+        require_module("malware")?;
+        let bytes = std::fs::read(sample)
+            .map_err(|_| IpcError::new(ErrorCode::InputNotRegular, "error.no_artifact"))?;
+        let name = sample
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("sample.bin");
+        let probe = self.probe_bytes_cached("malcheck-input", name, &bytes);
+        let eligible = ghidra_eligible(&probe);
+        let mut job = sidecar::run_malcheck(sample, eligible)?;
+        if let Some(map) = job.payload.as_object_mut() {
+            map.insert(
+                "content_type".into(),
+                serde_json::to_value(&probe).unwrap_or_default(),
+            );
+        }
+        self.store_module_job(job)
+    }
+
+    pub fn malcheck_artifact(&self, artifact_id: &str) -> Result<ModuleJob, IpcError> {
+        require_module("malware")?;
+        let (bytes, name, sha) = {
+            let inner = self.inner.lock().expect("mutex");
+            let rec = inner
+                .artifacts
+                .get(artifact_id)
+                .ok_or_else(|| IpcError::new(ErrorCode::NotFound, "error.not_found"))?;
+            let bytes = std::fs::read(blob_dir(&inner).join(&rec.imported.sha256))
+                .map_err(|_| IpcError::new(ErrorCode::PermissionDenied, "error.permission_denied"))?;
+            (
+                bytes,
+                rec.imported.display_name.clone(),
+                rec.imported.sha256.clone(),
+            )
+        };
+        let tmp = std::env::temp_dir().join(format!("unveil-malcheck-{sha}"));
+        std::fs::write(&tmp, &bytes)
+            .map_err(|_| IpcError::new(ErrorCode::PermissionDenied, "error.permission_denied"))?;
+        let job = self.malcheck_sample(&tmp);
+        let _ = std::fs::remove_file(&tmp);
+        let mut job = job?;
+        job.input_artifact_id = Some(artifact_id.into());
+        if job.sha256.as_deref() != Some(sha.as_str()) {
+            job.sha256 = Some(sha);
+        }
+        let _ = name;
+        self.store_module_job(job)
+    }
+
+    pub fn handoff_usb_to_malware(&self, root: &Path, sample: &Path) -> Result<ModuleJob, IpcError> {
+        let folder_mode = sidecar::usb_folder_mode_from_env();
+        let usb = self.usb_scan_root(root, 1, folder_mode)?;
+        let mal = self.malcheck_sample(sample)?;
+        let usb_hash = inventory_hash_for(&usb, sample).ok_or_else(|| {
+            IpcError::new(ErrorCode::SchemaMismatch, "error.handoff_hash_mismatch")
+        })?;
+        let mal_hash = mal.sha256.clone().ok_or_else(|| {
+            IpcError::new(ErrorCode::SchemaMismatch, "error.handoff_hash_mismatch")
+        })?;
+        if usb_hash != mal_hash {
+            return Err(IpcError::new(ErrorCode::SchemaMismatch, "error.handoff_hash_mismatch"));
+        }
+        Ok(mal)
+    }
+
+    pub fn handoff_usb_file(&self, job_id: &str, relative_name: &str) -> Result<ModuleJob, IpcError> {
+        require_module("malware")?;
+        let (root, usb_job) = {
+            let inner = self.inner.lock().expect("mutex");
+            let root = inner
+                .usb_scan_roots
+                .get(job_id)
+                .cloned()
+                .ok_or_else(|| IpcError::new(ErrorCode::NotFound, "error.not_found"))?;
+            let usb_job = inner
+                .last_module_job
+                .as_ref()
+                .filter(|job| job.job_id == job_id && job.module_id == "usb")
+                .cloned();
+            (root, usb_job)
+        };
+        let path = resolve_under_scan_root(&root, relative_name)?;
+        let bytes = std::fs::read(&path).map_err(|_| {
+            IpcError::new(ErrorCode::PermissionDenied, "error.permission_denied")
+        })?;
+        let basename = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or(relative_name);
+        let artifact = self.import_bytes(&bytes, basename)?;
+        let job = self.malcheck_artifact(&artifact.artifact_id)?;
+        if let Some(usb) = usb_job {
+            let expected = inventory_hash_for_name(&usb, relative_name).ok_or_else(|| {
+                IpcError::new(ErrorCode::SchemaMismatch, "error.handoff_hash_mismatch")
+            })?;
+            let got = job.sha256.clone().ok_or_else(|| {
+                IpcError::new(ErrorCode::SchemaMismatch, "error.handoff_hash_mismatch")
+            })?;
+            if expected != got {
+                return Err(IpcError::new(
+                    ErrorCode::SchemaMismatch,
+                    "error.handoff_hash_mismatch",
+                ));
+            }
+        }
+        Ok(job)
+    }
+
+    pub fn handoff_to_deobfuscation(
+        &self,
+        artifact_id: &str,
+    ) -> Result<ImportedArtifact, IpcError> {
+        let mut inner = self.inner.lock().expect("mutex");
+        let imported = inner
+            .artifacts
+            .get(artifact_id)
+            .ok_or_else(|| IpcError::new(ErrorCode::NotFound, "error.not_found"))?
+            .imported
+            .clone();
+        inner.current_id = Some(artifact_id.to_string());
+        inner.analysis = None;
+        Ok(imported)
+    }
+
+    pub fn export_markdown(&self, module_id: &str) -> Result<String, IpcError> {
+        match module_id {
+            "deobfuscation" | "analyze" => {
+                let inner = self.inner.lock().expect("mutex");
+                let analysis = inner
+                    .analysis
+                    .as_ref()
+                    .ok_or_else(|| IpcError::new(ErrorCode::NotFound, "error.no_analysis"))?;
+                let current = inner
+                    .current_id
+                    .as_ref()
+                    .and_then(|id| inner.artifacts.get(id))
+                    .ok_or_else(|| IpcError::new(ErrorCode::NotFound, "error.no_artifact"))?;
+                Ok(markdown::deobfuscation_markdown(
+                    &current.imported.display_name,
+                    &current.imported.sha256,
+                    analysis,
+                    inner.last_probe.as_ref(),
+                ))
+            }
+            "malware" | "usb" => {
+                let job = self
+                    .inner
+                    .lock()
+                    .expect("mutex")
+                    .last_module_job
+                    .clone()
+                    .ok_or_else(|| IpcError::new(ErrorCode::NotFound, "error.not_found"))?;
+                if job.module_id != module_id {
+                    return Err(IpcError::new(ErrorCode::NotFound, "error.not_found"));
+                }
+                Ok(markdown::module_job_markdown(&job))
+            }
+            _ => Err(IpcError::new(ErrorCode::NotFound, "error.not_found")),
+        }
+    }
+
+    pub fn write_markdown_export(&self, module_id: &str, dest: &Path) -> Result<String, IpcError> {
+        let body = self.export_markdown(module_id)?;
+        markdown::write_markdown(dest, &body)
+            .map_err(|_| IpcError::new(ErrorCode::StorageFull, "error.storage_full"))?;
+        Ok(body)
+    }
+
+    pub fn default_markdown_path(&self, module_id: &str) -> PathBuf {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        self.inner
+            .lock()
+            .expect("mutex")
+            .workspace
+            .join("reports")
+            .join(format!("{module_id}-{stamp}.md"))
+    }
+
+    fn store_module_job(&self, job: ModuleJob) -> Result<ModuleJob, IpcError> {
+        let mut inner = self.inner.lock().expect("mutex");
+        let dir = inner
+            .workspace
+            .join("sessions")
+            .join(&inner.session_id)
+            .join("module_jobs")
+            .join(&job.module_id);
+        let _ = std::fs::create_dir_all(&dir);
+        if let Ok(json) = serde_json::to_vec_pretty(&job) {
+            let _ = std::fs::write(dir.join(format!("{}.json", job.job_id)), json);
+        }
+        let _ = inner.store.insert_job(
+            &job.job_id,
+            &inner.session_id,
+            &job.module_id,
+            &job.status,
+            job.input_artifact_id.as_deref(),
+            None,
+        );
+        inner.last_module_job = Some(job.clone());
+        Ok(job)
     }
 
     pub fn current_artifact(&self) -> Option<ImportedArtifact> {
@@ -607,6 +985,68 @@ impl Coordinator {
             error: None,
         }
     }
+}
+
+fn require_module(module_id: &str) -> Result<(), IpcError> {
+    let diagnosis = diagnose_module(module_id)
+        .map_err(|e| IpcError::new(ErrorCode::ModuleUnavailable, e))?;
+    if !diagnosis.available {
+        return Err(IpcError::new(
+            ErrorCode::ModuleUnavailable,
+            "error.module_unavailable",
+        ));
+    }
+    Ok(())
+}
+
+fn inventory_hash_for(job: &ModuleJob, sample: &Path) -> Option<String> {
+    let name = sample.file_name()?.to_str()?;
+    inventory_hash_for_name(job, name)
+}
+
+fn inventory_hash_for_name(job: &ModuleJob, relative_name: &str) -> Option<String> {
+    job.payload.get("inventory")?.as_array()?.iter().find_map(|item| {
+        let item_name = item.get("name")?.as_str()?;
+        if item_name == relative_name
+            || item_name.ends_with(relative_name)
+            || relative_name.ends_with(item_name)
+        {
+            item.get("sha256")?.as_str().map(str::to_string)
+        } else {
+            None
+        }
+    })
+}
+
+fn resolve_under_scan_root(root: &Path, relative_name: &str) -> Result<PathBuf, IpcError> {
+    if relative_name.is_empty() || relative_name.contains(':') {
+        return Err(IpcError::new(
+            ErrorCode::PermissionDenied,
+            "error.permission_denied",
+        ));
+    }
+    let rel = Path::new(relative_name);
+    if rel.is_absolute() {
+        return Err(IpcError::new(
+            ErrorCode::PermissionDenied,
+            "error.permission_denied",
+        ));
+    }
+    for comp in rel.components() {
+        if matches!(comp, Component::ParentDir) {
+            return Err(IpcError::new(
+                ErrorCode::PermissionDenied,
+                "error.permission_denied",
+            ));
+        }
+    }
+    Ok(root.join(rel))
+}
+
+fn sha256_bytes(bytes: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    hasher.finalize().iter().map(|b| format!("{b:02x}")).collect()
 }
 
 fn blob_dir(inner: &Inner) -> PathBuf {

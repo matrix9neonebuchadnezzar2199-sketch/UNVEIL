@@ -146,6 +146,8 @@ impl Store {
         overview.categories = self.named("SELECT category, COUNT(*) FROM findings GROUP BY category ORDER BY category");
         overview.techniques = self.named("SELECT technique_id, COUNT(*) FROM findings GROUP BY technique_id ORDER BY technique_id");
         overview.job_outcomes = self.named("SELECT status, COUNT(*) FROM jobs GROUP BY status ORDER BY status");
+        overview.module_jobs =
+            self.named("SELECT kind, COUNT(*) FROM jobs GROUP BY kind ORDER BY kind");
         if let Ok(mut stmt) = self.conn.prepare(
             "SELECT s.name, COUNT(f.id), CASE s.saved WHEN 1 THEN 'saved' ELSE 'ephemeral' END
              FROM sessions s LEFT JOIN findings f ON f.session_id=s.id

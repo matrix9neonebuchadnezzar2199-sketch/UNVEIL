@@ -108,3 +108,18 @@ PRごと: 文書リンク/schema/型検査/lint/単体fixture/契約/E2E smoke�
 ## 9. 今回の設計文書に対する検証
 
 対象はdocs内のMarkdown。相対リンク先の存在、コードフェンス、JSON例のパース、PHASE 00〜07/G00〜G07の網羅、要求IDとAT/ST/PT参照、Base64例の正しさ、変更差分の空白問題を検査する。結果はPRに記録する。アプリ実装の試験合格と混同しない。
+
+## 10. DEPTH 試験定義（U11–U15 / ST-U01）
+
+`python TEST.py` の U11–U15 プローブに対応する受入試験定義。**合格％・precision は Gate に含めない**（未測定）。
+
+| ID | 内容 | 期待結果 |
+|---|---|---|
+| AT-U11 | Magika 同梱モデル・オフライン probe | `third_party/magika` に model.onnx。`magika_probe --self-test` が `status=ok`。JS で `ghidra_eligible=false` |
+| AT-U12 | USB 非リムーバブル既定拒否・workers | 固定ディスク root 拒否。`usb-drives` 列挙。folder_mode で U07 readonly 回帰 |
+| AT-U13 | MalCheck 表層正直 | `surface-minimal` 禁止。scanner 無しで status=ok 偽装なし。schema 2.1 |
+| AT-U14 | Ghidra skipped-or-real | JS/static 非 eligible。eligible なし success 禁止。`C_docker` は local image inspect |
+| AT-U15 | 横断 handoff・パス非露出 | USB inventory → malware `input_artifact_id`。JSON に `C:\Users\` 等の絶対パスなし |
+| ST-U01 | USB readonly | U07 と同義: スキャン前後で対象 root 内ファイルの mtime/size 不変 |
+
+SBOM: `sidecars/requirements.lock`（U16 Gate）。

@@ -35,7 +35,7 @@
 
 ## 現状
 
-PHASE 00–06 の MVP を実装済み。検証入口はリポジトリ直下の `python TEST.py`。PHASE 07（packer unpack 等）は別ロードマップのため未実装。
+PHASE 00–06 の MVP を実装済み。検証入口はリポジトリ直下の `python TEST.py`。PHASE 07（packer unpack 等）は別ロードマップのため未実装。統合骨格（U00–U07 sidecar）は 2026-09-08 に TEST 合格。深度（U11–U16）の実装手順は [docs/17-depth-implementation-spec.md](docs/17-depth-implementation-spec.md)（コード未着手）。
 
 | 部品 | 状態 |
 |------|------|

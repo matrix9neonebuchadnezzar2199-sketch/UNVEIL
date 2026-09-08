@@ -4,10 +4,13 @@ import {
   approveTransform,
   applyTransform,
   chooseFile,
+  exportMarkdown,
   exportReport,
   formatIpcError,
   importFile,
   importLesson,
+  lastProbe,
+  loadCurrentArtifact,
   loadDetectors,
   planTransform,
   previewTransform,
@@ -18,6 +21,7 @@ import {
 } from "../ipc";
 import type {
   AnalysisResult,
+  ContentTypeProbe,
   DetectorToggle,
   Finding,
   ImportedArtifact,
@@ -44,10 +48,17 @@ export default function Analyze({ isolationAvailable }: Props) {
   const [wikiHits, setWikiHits] = useState<WikiHit[]>([]);
   const [article, setArticle] = useState<WikiArticle | null>(null);
   const [wikiQuery, setWikiQuery] = useState("");
+  const [probe, setProbe] = useState<ContentTypeProbe | null>(null);
 
   useEffect(() => {
     void loadDetectors().then(setDetectors);
     void wikiSearch("").then(setWikiHits);
+    void loadCurrentArtifact().then((current) => {
+      if (current) {
+        setArtifact(current);
+        setStatus(`引き渡し試料: ${current.display_name}`);
+      }
+    });
     const unlisten = listen<SelectionPreview>("selection-ready", (event) => {
       setPreview(event.payload);
       setArtifact(null);
@@ -98,6 +109,7 @@ export default function Analyze({ isolationAvailable }: Props) {
             setPreview(null);
             setArtifact(next);
             setAnalysis(null);
+            setProbe(await lastProbe());
             setStatus("教材スナップショットを作成しました。");
           })}>
             教材から始める
@@ -110,6 +122,7 @@ export default function Analyze({ isolationAvailable }: Props) {
               if (!artifact) return;
               const result = await startAnalysis(artifact.artifact_id);
               setAnalysis(result);
+              setProbe(await lastProbe());
               setStatus(`解析完了 assessment=${result.assessment} coverage=${result.coverage.status}`);
             })}
           >
@@ -127,6 +140,18 @@ export default function Analyze({ isolationAvailable }: Props) {
             setStatus(`レポートをコピーしました。原本同梱=${report.included_original}`);
           })}>
             レポートJSONコピー
+          </button>
+          <button
+            type="button"
+            className="btn-save"
+            disabled={busy || !analysis}
+            onClick={() => void run(async () => {
+              const body = await exportMarkdown("deobfuscation", "clipboard");
+              await navigator.clipboard.writeText(body);
+              setStatus("Markdown をクリップボードへコピーしました。原本パスは含みません。");
+            })}
+          >
+            結果をマークダウン形式で出力
           </button>
         </div>
       </section>
@@ -152,6 +177,7 @@ export default function Analyze({ isolationAvailable }: Props) {
                   <button type="button" className="btn" disabled={busy} onClick={() => void run(async () => {
                     const next = await importFile(preview.token);
                     setArtifact(next);
+                    setProbe(await lastProbe());
                     setStatus("スナップショットを作成しました。原本は変更していません。");
                   })}>
                     取込
@@ -171,6 +197,39 @@ export default function Analyze({ isolationAvailable }: Props) {
           </tbody>
         </table>
       </section>
+
+      {probe ? (
+        <section className="card">
+          <h2>ContentType Probe</h2>
+          <p className="sub">Magika score はタイプ信頼度。不一致は注意のみ。Ghidra 投入判定とは別。</p>
+          <table>
+            <tbody>
+              <tr>
+                <td>拡張子</td>
+                <td><code>{probe.declared_extension || "—"}</code></td>
+              </tr>
+              <tr>
+                <td>magic</td>
+                <td><code>{probe.magic_hint}</code></td>
+              </tr>
+              <tr>
+                <td>Magika</td>
+                <td>
+                  <code>{probe.magika.status}</code>
+                  {probe.magika.output_label ? ` · ${probe.magika.output_label}` : null}
+                  {probe.magika.score != null ? (
+                    <span className="muted"> · タイプ信頼度 {probe.magika.score.toFixed(3)}（悪意ではない）</span>
+                  ) : null}
+                </td>
+              </tr>
+              <tr>
+                <td>mismatch</td>
+                <td>{probe.mismatch_flags.length ? probe.mismatch_flags.join(", ") : "なし"}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      ) : null}
 
       <section className="card">
         <h2>このジョブの検知器（ON/OFF）</h2>

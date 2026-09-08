@@ -1,0 +1,4 @@
+magika==1.0.3
+model=standard_v3_3
+bundled=2026-09-08
+offline-only: no runtime pip or model download

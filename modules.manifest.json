@@ -1,0 +1,70 @@
+{
+  "schema_version": "1.0",
+  "workbench": {
+    "name": "UNVEIL",
+    "version": "0.2.0-unified-design",
+    "schema_version": "1.0"
+  },
+  "modules": [
+    {
+      "id": "dashboard",
+      "label_ja": "Dashboard",
+      "label_en": "Dashboard",
+      "route": "/dashboard",
+      "capabilities": ["C_isolation"],
+      "status": "mvp",
+      "worker": "native",
+      "test_probes": ["U01 manifest renders", "U02 isolation still fail-closed"]
+    },
+    {
+      "id": "malware",
+      "label_ja": "マルウェア解析",
+      "label_en": "Malware Analysis",
+      "route": "/malware",
+      "capabilities": [
+        "C_isolation",
+        "C_docker",
+        "C_magika",
+        "C_yara",
+        "C_malcheck_surface",
+        "C_sidecar_malcheck"
+      ],
+      "status": "mvp",
+      "worker": "sidecar:malcheck",
+      "test_probes": [
+        "U05 routing",
+        "U06 malcheck schema 2.1",
+        "U08 handoff"
+      ],
+      "wiki_article_ids": ["static-triage-limits"]
+    },
+    {
+      "id": "deobfuscation",
+      "label_ja": "難読化判定",
+      "label_en": "Deobfuscation",
+      "route": "/deobfuscation",
+      "capabilities": ["C_isolation", "C_magika"],
+      "status": "mvp",
+      "worker": "native",
+      "test_probes": ["AT smoke (01-06)"],
+      "wiki_article_ids": ["enc-base64", "layout-minify"]
+    },
+    {
+      "id": "usb",
+      "label_ja": "USBチェック",
+      "label_en": "USB Check",
+      "route": "/usb",
+      "capabilities": [
+        "C_isolation",
+        "C_usb",
+        "C_magika",
+        "C_yara",
+        "C_sidecar_usb"
+      ],
+      "status": "mvp",
+      "worker": "sidecar:usb",
+      "test_probes": ["U07 usb readonly", "U08 handoff"],
+      "wiki_article_ids": ["usb-static-scan-limits"]
+    }
+  ]
+}

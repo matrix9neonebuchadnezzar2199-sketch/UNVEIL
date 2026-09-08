@@ -14,7 +14,8 @@ export type ErrorCode =
   | "PARSE_FAILED"
   | "WORKER_CRASHED"
   | "STORAGE_FULL"
-  | "SCHEMA_MISMATCH";
+  | "SCHEMA_MISMATCH"
+  | "MODULE_UNAVAILABLE";
 
 export type AppInfo = {
   name: string;
@@ -75,6 +76,7 @@ export type DashboardOverview = {
   categories: NamedCount[];
   techniques: NamedCount[];
   job_outcomes: NamedCount[];
+  module_jobs?: NamedCount[];
   sessions: SessionRow[];
 };
 
@@ -164,4 +166,79 @@ export type IpcError = {
   message_key: string;
 };
 
-export type PageId = "dashboard" | "analyze";
+export type PageId = "dashboard" | "deobfuscation" | "malware" | "usb";
+
+export type ModuleSpecView = {
+  id: PageId | string;
+  label_ja: string;
+  route: string;
+  status: string;
+  disabled: boolean;
+};
+
+export type CapabilityCheck = {
+  id: string;
+  available: boolean;
+  detail: string;
+};
+
+export type ModuleDiagnosis = {
+  module_id: string;
+  available: boolean;
+  status: string;
+  checks: CapabilityCheck[];
+};
+
+export type MagikaOutput = {
+  status: string;
+  dl_label: string | null;
+  output_label: string | null;
+  score: number | null;
+  prediction_mode: string;
+  mime_type: string | null;
+  is_text: boolean | null;
+};
+
+export type ContentTypeProbe = {
+  probe_id: string;
+  artifact_id: string;
+  declared_extension: string;
+  magic_hint: string;
+  magika: MagikaOutput;
+  mismatch_flags: string[];
+  ghidra_eligible: boolean;
+};
+
+export type ModuleJob = {
+  job_id: string;
+  module_id: string;
+  input_artifact_id: string | null;
+  sha256: string | null;
+  status: string;
+  payload: unknown;
+};
+
+export type UsbDrive = {
+  token: string;
+  token_hint: string;
+  letter: string;
+  bus?: string;
+  vid?: string | null;
+  pid?: string | null;
+  composite_suspect?: boolean;
+  capacity_bytes?: number;
+};
+
+export type UsbInventoryRow = {
+  name: string;
+  sha256?: string | null;
+  size?: number | null;
+};
+
+export type UsbScanPayload = {
+  inventory?: UsbInventoryRow[];
+  overall?: string;
+  findings_count?: number;
+  notice?: string;
+  workers?: number;
+};

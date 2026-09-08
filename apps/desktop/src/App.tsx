@@ -1,18 +1,30 @@
 import { useEffect, useState } from "react";
 import Analyze from "./views/Analyze";
 import Dashboard from "./views/Dashboard";
-import type { IsolationDiagnosis, PageId } from "./types";
-import { diagnoseIsolation, formatIpcError } from "./ipc";
+import Malware from "./views/Malware";
+import Usb from "./views/Usb";
+import type { IsolationDiagnosis, ModuleJob, ModuleSpecView, PageId } from "./types";
+import { diagnoseIsolation, formatIpcError, loadModules } from "./ipc";
 import "./App.css";
+
+function isPageId(id: string): id is PageId {
+  return id === "dashboard" || id === "deobfuscation" || id === "malware" || id === "usb";
+}
 
 function App() {
   const [page, setPage] = useState<PageId>("dashboard");
   const [diagnosis, setDiagnosis] = useState<IsolationDiagnosis | null>(null);
+  const [modules, setModules] = useState<ModuleSpecView[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [malwareHandoffJob, setMalwareHandoffJob] = useState<ModuleJob | null>(null);
+  const [analyzeKey, setAnalyzeKey] = useState(0);
 
   useEffect(() => {
     diagnoseIsolation()
       .then(setDiagnosis)
+      .catch((cause) => setError(formatIpcError(cause)));
+    loadModules()
+      .then((payload) => setModules(payload.modules ?? []))
       .catch((cause) => setError(formatIpcError(cause)));
   }, []);
 
@@ -81,15 +93,20 @@ function App() {
     };
   }, []);
 
+  const active = modules.find((item) => item.id === page);
+  const isolationOk = Boolean(diagnosis?.available);
+
   return (
     <>
       <header>
         <h1>UNVEIL</h1>
-        <span className="pill">{page === "dashboard" ? "概要" : "Analyze"}</span>
+        <span className="pill">{active?.label_ja ?? page}</span>
         <span className="pill">STATIC</span>
         {diagnosis && !diagnosis.available ? (
           <span className="pill warn">隔離未実証 · 解析開始不可</span>
-        ) : null}
+        ) : (
+          <span className="pill">隔離 OK</span>
+        )}
         <span className="spacer" />
         <span className="hdr-group">
           <span className="lbl">文字</span>
@@ -111,23 +128,31 @@ function App() {
       </div>
       <div id="layout">
         <nav id="sidebar">
-          <h3>画面</h3>
-          <button
-            type="button"
-            className={page === "dashboard" ? "side-link active" : "side-link"}
-            onClick={() => setPage("dashboard")}
-          >
-            Dashboard
-          </button>
-          <button
-            type="button"
-            className={page === "analyze" ? "side-link active" : "side-link"}
-            onClick={() => setPage("analyze")}
-          >
-            Analyze
-          </button>
+          <h3>モジュール</h3>
+          {modules.map((item) => {
+            const id = isPageId(item.id) ? item.id : "dashboard";
+            const disabled = item.disabled;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`${page === id ? "side-link active" : "side-link"}${disabled ? " disabled" : ""}`}
+                disabled={disabled}
+                title={disabled ? "準備中" : item.label_ja}
+                onClick={() => {
+                  if (!disabled && isPageId(item.id)) {
+                    setPage(item.id);
+                  }
+                }}
+              >
+                {item.label_ja}
+                {item.status === "planned" ? <span className="side-badge">準備中</span> : null}
+                {item.status === "mvp" ? <span className="side-badge mvp">MVP</span> : null}
+              </button>
+            );
+          })}
           <div className="side-meta">
-            v0.1.0 · schema 1.0
+            v0.2.0 · schema 1.0
             <br />
             隔離: {diagnosis?.error_code ?? (diagnosis?.available ? "OK" : "…")}
           </div>
@@ -140,10 +165,30 @@ function App() {
         <main>
           {error ? <p className="err">{error}</p> : null}
           {page === "dashboard" ? (
-            <Dashboard onOpenAnalyze={() => setPage("analyze")} />
-          ) : (
-            <Analyze isolationAvailable={Boolean(diagnosis?.available)} />
-          )}
+            <Dashboard onOpenAnalyze={() => setPage("deobfuscation")} />
+          ) : null}
+          {page === "deobfuscation" ? (
+            <Analyze key={analyzeKey} isolationAvailable={isolationOk} />
+          ) : null}
+          {page === "malware" ? (
+            <Malware
+              isolationAvailable={isolationOk}
+              initialJob={malwareHandoffJob}
+              onHandoffDeobfuscation={() => {
+                setAnalyzeKey((value) => value + 1);
+                setPage("deobfuscation");
+              }}
+            />
+          ) : null}
+          {page === "usb" ? (
+            <Usb
+              isolationAvailable={isolationOk}
+              onHandoffMalware={(job) => {
+                setMalwareHandoffJob(job);
+                setPage("malware");
+              }}
+            />
+          ) : null}
         </main>
       </div>
     </>

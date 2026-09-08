@@ -21,6 +21,7 @@ pub enum ErrorCode {
     ValidationFailed,
     ParseFailed,
     InvalidEncoding,
+    ModuleUnavailable,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

@@ -3,6 +3,7 @@
 mod analysis;
 mod error;
 mod isolation;
+mod modules;
 mod protocol;
 mod transform;
 mod wiki;
@@ -10,6 +11,7 @@ mod wiki;
 pub use analysis::*;
 pub use error::*;
 pub use isolation::*;
+pub use modules::*;
 pub use protocol::*;
 pub use transform::*;
 pub use wiki::*;
@@ -98,6 +100,8 @@ pub struct DashboardOverview {
     pub categories: Vec<NamedCount>,
     pub techniques: Vec<NamedCount>,
     pub job_outcomes: Vec<NamedCount>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub module_jobs: Vec<NamedCount>,
     pub sessions: Vec<SessionRow>,
 }
 
@@ -111,6 +115,7 @@ impl DashboardOverview {
             categories: Vec::new(),
             techniques: Vec::new(),
             job_outcomes: Vec::new(),
+            module_jobs: Vec::new(),
             sessions: Vec::new(),
         }
     }

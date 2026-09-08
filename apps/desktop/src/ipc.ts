@@ -7,6 +7,11 @@ import type {
   DetectorToggle,
   ImportedArtifact,
   IsolationDiagnosis,
+  ModuleDiagnosis,
+  ModuleJob,
+  ModuleSpecView,
+  ContentTypeProbe,
+  UsbDrive,
   ReportDocument,
   SelectionPreview,
   TransformPlan,
@@ -41,6 +46,28 @@ export const wikiGet = (articleId: string) => invoke<WikiArticle>("wiki_get_cmd"
 export const saveSession = (name: string) => invoke<string>("session_save_cmd", { name });
 export const exportReport = (includeBodies: boolean) =>
   invoke<ReportDocument>("report_export_cmd", { include_bodies: includeBodies });
+export const loadModules = () => invoke<{ modules: ModuleSpecView[] }>("modules_cmd");
+export const diagnoseModule = (moduleId: string) =>
+  invoke<ModuleDiagnosis>("diagnose_module_cmd", { module_id: moduleId });
+export const lastProbe = () => invoke<ContentTypeProbe | null>("probe_last_cmd");
+export const usbDrives = () => invoke<{ ok: boolean; drives: UsbDrive[] }>("usb_drives_cmd");
+export const usbScan = (args?: { driveToken?: string; folderMode?: boolean; workers?: number }) =>
+  invoke<ModuleJob>("usb_scan_cmd", {
+    drive_token: args?.driveToken ?? null,
+    folder_mode: args?.folderMode ?? false,
+    workers: args?.workers ?? 4,
+  });
+export const usbCancel = () => invoke<void>("usb_cancel_cmd");
+export const malcheckStart = (artifactId: string) =>
+  invoke<ModuleJob>("malcheck_cmd", { artifact_id: artifactId });
+export const handoffUsbFile = (jobId: string, name: string) =>
+  invoke<ModuleJob>("handoff_usb_cmd", { job_id: jobId, name });
+export const handoffDeobfuscation = (artifactId: string) =>
+  invoke<ImportedArtifact>("handoff_deobfuscation_cmd", { artifact_id: artifactId });
+export const loadCurrentArtifact = () =>
+  invoke<ImportedArtifact | null>("current_artifact_cmd");
+export const exportMarkdown = (moduleId: string, dest: "clipboard" | "workspace" | "picker") =>
+  invoke<string>("markdown_export_cmd", { module_id: moduleId, dest });
 
 export function formatIpcError(error: unknown): string {
   if (typeof error === "object" && error !== null && "message_key" in error) {

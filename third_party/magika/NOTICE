@@ -1,0 +1,7 @@
+Magika (https://github.com/google/magika)
+Copyright Google LLC
+Licensed under the Apache License, Version 2.0
+
+UNVEIL bundles the magika Python package (sidecars/vendor) and ONNX model
+(third_party/magika/models/) for offline content-type probing only.
+Magika output is routing metadata, not a malware verdict.
